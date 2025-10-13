@@ -4,7 +4,7 @@ import pandas as pd
 import itertools
 import vectorbt as vbt
 from config import strategy_params, INIT_CASH
-from strategies import build_signals
+
 
 def walk_forward_optimize(price, strat, train_window=756, test_window=126):
     param_grid = list(itertools.product(*strategy_params[strat].values()))
@@ -30,11 +30,13 @@ def walk_forward_optimize(price, strat, train_window=756, test_window=126):
     return best_params, best_score
 
 def run_backtest(price, strat, params):
+    from strategies import build_signals
     entries, exits = build_signals(price, strat, params)
     pf = vbt.Portfolio.from_signals(price, entries, exits, init_cash=INIT_CASH, fees=0.001)
     return pf
 
 def stack_strategies(price, strategies_with_params):
+    from strategies import build_signals
     entry_stack = pd.Series(False, index=price.index)
     exit_stack = pd.Series(False, index=price.index)
     for strat, params in strategies_with_params.items():
@@ -45,6 +47,7 @@ def stack_strategies(price, strategies_with_params):
     return pf
 
 def stack_by_correlation(price, strategies_with_params, lookback=252, corr_threshold=0.3, metric='returns'):
+    from strategies import build_signals
     """
     Greedy stacking: start from the highest expected score (walk-forward winner) if known externally,
     otherwise from the first strategy. Add strategies whose metric correlation to the stack is < threshold.
