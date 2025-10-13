@@ -1,13 +1,14 @@
 import yfinance as yf
 import pandas as pd
 
+MACRO_SYMBOLS = {
+    "VIX": "^VIX",          # Volatility Index
+    "US10Y": "^TNX",        # 10Y Treasury Yield
+    "DXY": "DX-Y.NYB",      # US Dollar Index
+    "SPY": "SPY"            # S&P 500 ETF
+}
+
 def get_price_data(ticker, start=None, end=None, period="10y", interval="1d", retries=2):
-    """
-    Fetches price data with fallback logic:
-    - First tries start/end range
-    - If empty, retries with period='max'
-    - Returns Close price series or empty Series
-    """
     for attempt in range(retries):
         try:
             if start and end:
@@ -18,7 +19,6 @@ def get_price_data(ticker, start=None, end=None, period="10y", interval="1d", re
             if df.empty or "Close" not in df.columns:
                 print(f"[WARN] Attempt {attempt+1}: No data for {ticker}")
                 if attempt == 0:
-                    # Retry with fallback
                     start, end = None, None
                     period = "max"
                     continue
@@ -31,16 +31,12 @@ def get_price_data(ticker, start=None, end=None, period="10y", interval="1d", re
                 return pd.Series(dtype=float)
 
 def get_macro_data(start=None, end=None, selection=None):
-    """
-    selection: list of macro keys from MACRO_SYMBOLS, e.g. ["VIX","US10Y","DXY","SPY"]
-    Returns dict: {name: series}
-    """
-    sel = selection or ["VIX", "US10Y", "DXY", "SPY"]
-    out = {}
-    for name in sel:
+    selection = selection or ["VIX", "US10Y", "DXY", "SPY"]
+    macro_data = {}
+    for name in selection:
         symbol = MACRO_SYMBOLS.get(name)
         if not symbol:
             continue
-        s = get_price_data(symbol, start=start, end=end)
-        out[name] = s
-    return out
+        series = get_price_data(symbol, start=start, end=end)
+        macro_data[name] = series
+    return macro_data
