@@ -1,9 +1,12 @@
+# data.py
 import yfinance as yf
 import pandas as pd
 
 def get_price_data(ticker, start=None, end=None, period="10y"):
     try:
-        df = yf.download(ticker, start=start, end=end, period=period, auto_adjust=True)
+        df = yf.download(ticker, start=start, end=end, period=period, auto_adjust=True, progress=False)
+        if df.empty:
+            return pd.Series(dtype=float)
         return df["Close"] if "Close" in df.columns else df["Adj Close"]
     except Exception:
         return pd.Series(dtype=float)
@@ -18,3 +21,26 @@ def get_fundamentals(ticker):
         }
     except Exception:
         return {"PE": None, "EPS_GROWTH": None, "DE_RATIO": None}
+
+# Macro proxies via yfinance symbols
+MACRO_SYMBOLS = {
+    "VIX": "^VIX",          # Volatility Index
+    "US10Y": "^TNX",        # 10Y Treasury Yield (index points)
+    "DXY": "DX-Y.NYB",      # US Dollar Index (Yahoo symbol)
+    "SPY": "SPY"            # SPY ETF as equity benchmark
+}
+
+def get_macro_data(start=None, end=None, selection=None):
+    """
+    selection: list of macro keys from MACRO_SYMBOLS, e.g. ["VIX","US10Y","DXY","SPY"]
+    Returns dict: {name: series}
+    """
+    sel = selection or ["VIX", "US10Y", "DXY", "SPY"]
+    out = {}
+    for name in sel:
+        symbol = MACRO_SYMBOLS.get(name)
+        if not symbol:
+            continue
+        s = get_price_data(symbol, start=start, end=end)
+        out[name] = s
+    return out
