@@ -1,41 +1,34 @@
-# data.py
 import yfinance as yf
 import pandas as pd
 
-def get_price_data(ticker, start=None, end=None, period="10y"):
-    try:
-        if start and end:
-            df = yf.download(ticker, start=start, end=end, auto_adjust=True, progress=False)
-        else:
-            df = yf.download(ticker, period=period, auto_adjust=True, progress=False)
+def get_price_data(ticker, start=None, end=None, period="10y", interval="1d", retries=2):
+    """
+    Fetches price data with fallback logic:
+    - First tries start/end range
+    - If empty, retries with period='max'
+    - Returns Close price series or empty Series
+    """
+    for attempt in range(retries):
+        try:
+            if start and end:
+                df = yf.download(ticker, start=start, end=end, interval=interval, auto_adjust=True, progress=False)
+            else:
+                df = yf.download(ticker, period=period, interval=interval, auto_adjust=True, progress=False)
 
-        if df.empty:
-            print(f"[WARN] No data returned for {ticker}")
-            return pd.Series(dtype=float)
+            if df.empty or "Close" not in df.columns:
+                print(f"[WARN] Attempt {attempt+1}: No data for {ticker}")
+                if attempt == 0:
+                    # Retry with fallback
+                    start, end = None, None
+                    period = "max"
+                    continue
+                return pd.Series(dtype=float)
 
-        return df["Close"]
-    except Exception as e:
-        print(f"[ERROR] Failed to fetch {ticker}: {e}")
-        return pd.Series(dtype=float)
-
-def get_fundamentals(ticker):
-    try:
-        info = yf.Ticker(ticker).info
-        return {
-            "PE": info.get("trailingPE"),
-            "EPS_GROWTH": info.get("earningsQuarterlyGrowth"),
-            "DE_RATIO": info.get("debtToEquity")
-        }
-    except Exception:
-        return {"PE": None, "EPS_GROWTH": None, "DE_RATIO": None}
-
-# Macro proxies via yfinance symbols
-MACRO_SYMBOLS = {
-    "VIX": "^VIX",          # Volatility Index
-    "US10Y": "^TNX",        # 10Y Treasury Yield (index points)
-    "DXY": "DX-Y.NYB",      # US Dollar Index (Yahoo symbol)
-    "SPY": "SPY"            # SPY ETF as equity benchmark
-}
+            return df["Close"].dropna()
+        except Exception as e:
+            print(f"[ERROR] Attempt {attempt+1}: Failed to fetch {ticker}: {e}")
+            if attempt == retries - 1:
+                return pd.Series(dtype=float)
 
 def get_macro_data(start=None, end=None, selection=None):
     """
