@@ -90,8 +90,13 @@ if st.button("Run Strategy Analysis"):
 
         st.subheader(f"📈 {ticker}")
         price = get_price_data(ticker, start=start_date, end=end_date)
-        if price.empty:
-            st.warning(f"No data for {ticker}")
+
+        # 🔍 Debug: Show price data
+        st.write(f"Fetched {len(price)} rows for {ticker}")
+        if not price.empty:
+            st.line_chart(price)
+        else:
+            st.warning(f"No price data available for {ticker}")
             continue
 
         # Walk-forward optimization for each selected strategy
@@ -99,28 +104,22 @@ if st.button("Run Strategy Analysis"):
         strat_scores = {}
 
         for strat in selected_strategies:
-            # Use manual override if desired: uncomment next two lines to enforce custom params
-            # params_override = custom_params.get(strat, None)
-            # if params_override: best_params, best_score = params_override, None
             best_params, best_score = walk_forward_optimize(price, strat)
-
             if best_params:
                 best_strats[strat] = best_params
                 strat_scores[strat] = best_score
                 st.markdown(f"**{strat}** → Best Params: `{best_params}`, Avg OOS Return: `{round(best_score*100, 2)}%`")
-                # persist learning
                 history.setdefault(ticker, {})[strat] = round(best_score, 4)
             else:
                 st.warning(f"{strat} failed for {ticker}")
 
         save_history(history)
 
-        # Recommendation based on historical success
         recommended = recommend_strategy(ticker, history)
         if recommended:
             st.info(f"📌 Based on past runs, **{recommended}** has performed best for {ticker}")
 
-        # Backtest: stacking mode
+        # Backtest
         pf = None
         chosen_strats = []
         if stack_mode == "None":
@@ -134,7 +133,7 @@ if st.button("Run Strategy Analysis"):
                 pf = stack_strategies(price, best_strats)
                 chosen_strats = list(best_strats.keys())
                 st.markdown("✅ **Backtest: OR-stacked strategies**")
-        else:  # Correlation-based stack
+        else:
             if best_strats:
                 pf, chosen_strats = stack_by_correlation(price, best_strats, lookback=252, corr_threshold=corr_threshold, metric=corr_metric)
                 st.markdown(f"✅ **Backtest: Correlation-based stack** (chosen: {', '.join(chosen_strats)})")
@@ -150,7 +149,7 @@ if st.button("Run Strategy Analysis"):
         news_sent = get_news_sentiment(ticker, api_key)
         sentiment_combined = round((reddit_sent + news_sent) / 2, 3)
 
-        # Chart: price + signals + macro overlays
+        # Chart
         fig = go.Figure()
         fig.add_trace(go.Scatter(x=price.index, y=price.values, mode='lines', name=f'{ticker} Price'))
 
@@ -162,6 +161,11 @@ if st.button("Run Strategy Analysis"):
 
         # Macro overlays
         macro_dict = get_macro_data(start=start_date, end=end_date, selection=macro_selection)
+
+        # 🔍 Debug: Show macro data points
+        for name, series in macro_dict.items():
+            st.write(f"Macro overlay '{name}': {len(series)} points")
+
         fig = add_macro_overlays(fig, macro_dict)
 
         if show_sentiment:
@@ -177,7 +181,6 @@ if st.button("Run Strategy Analysis"):
         csv = pf.trades.records_readable.to_csv(index=False)
         st.download_button("📥 Download Trades CSV", csv, file_name=f"{ticker}_trades.csv", mime="text/csv")
 
-        # Save for comparison table
         comparison_rows.append({
             "Ticker": ticker,
             "Chosen_Strategies": ", ".join(chosen_strats),
@@ -185,7 +188,7 @@ if st.button("Run Strategy Analysis"):
             "Sharpe_Ratio": float(stats_df["Sharpe Ratio"][0]) if "Sharpe Ratio" in stats_df.columns else np.nan
         })
 
-    # Side-by-side cumulative return comparison
+    # Comparison chart
     if pf_dict:
         st.subheader("📊 Side-by-Side Cumulative Return Comparison")
         st.plotly_chart(plot_comparison(pf_dict), use_container_width=True)
