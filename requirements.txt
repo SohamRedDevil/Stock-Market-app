@@ -4,3 +4,4 @@ vectorbt
 pandas
 numpy
 plotly
+core
