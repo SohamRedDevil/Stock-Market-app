@@ -27,19 +27,29 @@ def fetch_yahoo(ticker, start=None, end=None, interval="1d"):
         return pd.Series(dtype=float)
 
 # === Fallback 1: Alpha Vantage ===
-def fetch_alpha(ticker, start=None, end=None):
-    try:
-        ts = TimeSeries(key=ALPHA_KEY, output_format="pandas")
-        data, _ = ts.get_daily_adjusted(symbol=ticker, outputsize="full")
-        close = data["5. adjusted close"].sort_index()
-        if start:
-            close = close[close.index >= pd.to_datetime(start)]
-        if end:
-            close = close[close.index <= pd.to_datetime(end)]
-        return close
-    except Exception as e:
-        print(f"[Alpha ERROR] {ticker}: {e}")
+import requests
+import pandas as pd
+
+ALPHA_KEY = "YOUR_API_KEY"
+
+def fetch_alpha_direct(ticker, start=None, end=None):
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&outputsize=full&apikey={ALPHA_KEY}"
+    r = requests.get(url)
+    data = r.json().get("Time Series (Daily)", {})
+    if not data:
         return pd.Series(dtype=float)
+
+    df = pd.DataFrame(data).T
+    df.index = pd.to_datetime(df.index)
+    df = df.sort_index()
+    close = df["5. adjusted close"].astype(float)
+
+    if start:
+        close = close[close.index >= pd.to_datetime(start)]
+    if end:
+        close = close[close.index <= pd.to_datetime(end)]
+
+    return close
 
 # === Fallback 2: Financial Modeling Prep ===
 def fetch_fmp(ticker, start=None, end=None):
