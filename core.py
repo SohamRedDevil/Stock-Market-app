@@ -4,6 +4,7 @@ import pandas as pd
 import itertools
 import vectorbt as vbt
 from config import strategy_params, INIT_CASH
+from strategies import build_signals
 
 
 def walk_forward_optimize(price, strat, train_window=756, test_window=126):
