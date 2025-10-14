@@ -41,7 +41,7 @@ def build_signals(price, strat, params):
             exits   = _to_series(macd.macd < macd.signal, price.index)
             return entries, exits
 
-        elif strat == "Bollinger":
+         elif strat == "Bollinger":
             bb = vbt.BBANDS.run(
             price,
             window=params['window'],
