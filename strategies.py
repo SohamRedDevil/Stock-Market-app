@@ -32,11 +32,15 @@ def build_signals(price, strat, params):
             return entries, exits
 
         elif strat == "MACD":
-            # Expect params keys: fast, slow, signal
-            macd = vbt.MACD.run(price, fast=params['fast'], slow=params['slow'], signal=params['signal'])
-            entries = (macd.macd > macd.signal).squeeze()
-            exits   = (macd.macd < macd.signal).squeeze()
-            return entries, exits
+    macd = vbt.MACD.run(
+        price,
+        fast_window=params['fast_window'],
+        slow_window=params['slow_window'],
+        signal_window=params['signal_window']
+    )
+    entries = macd.macd > macd.signal
+    exits   = macd.macd < macd.signal
+    return entries.squeeze(), exits.squeeze()
 
         elif strat == "Bollinger":
             # Expect params keys: window, std
