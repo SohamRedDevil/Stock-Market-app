@@ -155,7 +155,9 @@ if st.button("Run Strategy Analysis"):
 
         from strategies import build_signals
         entries, exits = build_signals(price, chosen_strats[0], best_strats[chosen_strats[0]])
-       fig.add_trace(go.Scatter(x=price.index[entries], y=price[entries], mode='markers',
+       
+
+fig.add_trace(go.Scatter(x=price.index[entries], y=price[entries], mode='markers',
                                  marker=dict(color='green', size=6), name='Buy'))
         fig.add_trace(go.Scatter(x=price.index[exits], y=price[exits], mode='markers',
                                  marker=dict(color='red', size=6), name='Sell'))
