@@ -62,16 +62,19 @@ def get_price_data(ticker, start=None, end=None):
     # Try Yahoo first
     series = fetch_yahoo(ticker, start, end)
     if not series.empty:
+        print(f"[INFO] Yahoo returned {len(series)} rows for {ticker}")
         return series
 
     # Try Alpha Vantage
     series = fetch_alpha(ticker, start, end)
     if not series.empty:
+        print(f"[INFO] Alpha Vantage returned {len(series)} rows for {ticker}")
         return series
 
     # Try FMP
     series = fetch_fmp(ticker, start, end)
     if not series.empty:
+        print(f"[INFO] FMP returned {len(series)} rows for {ticker}")
         return series
 
     print(f"[FAIL] No data for {ticker}")
