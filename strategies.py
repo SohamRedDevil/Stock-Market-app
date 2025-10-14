@@ -2,6 +2,10 @@ import pandas as pd
 import vectorbt as vbt
 
 def build_signals(price, strat, params):
+    """
+    Return (entries, exits) as boolean Series aligned to price.index.
+    Uses vectorbt indicators where applicable and squeezes to Series.
+    """
     try:
         if strat == "MA":
             fast = vbt.MA.run(price, window=params['fast']).ma
@@ -19,18 +23,21 @@ def build_signals(price, strat, params):
             return entries, exits
 
         elif strat == "MACD":
-            macd = vbt.MACD.run(price, **params)
+            # Expect params keys: fast, slow, signal
+            macd = vbt.MACD.run(price, fast=params['fast'], slow=params['slow'], signal=params['signal'])
             entries = (macd.macd > macd.signal).squeeze()
             exits   = (macd.macd < macd.signal).squeeze()
             return entries, exits
 
         elif strat == "Bollinger":
-            bb = vbt.BBANDS.run(price, **params)
+            # Expect params keys: window, std
+            bb = vbt.BBANDS.run(price, window=params['window'], std=params.get('std', 2))
             entries = (price < bb.lower).squeeze()
             exits   = (price > bb.upper).squeeze()
             return entries, exits
 
         elif strat == "Breakout":
+            # Expect param: window
             roll_max = price.rolling(params['window']).max()
             roll_min = price.rolling(params['window']).min()
             entries = (price > roll_max.shift(1)).squeeze()
@@ -38,12 +45,14 @@ def build_signals(price, strat, params):
             return entries, exits
 
         elif strat == "Momentum":
+            # Expect param: window
             mom = price.pct_change(params['window'])
             entries = (mom > 0).squeeze()
             exits   = (mom < 0).squeeze()
             return entries, exits
 
         elif strat == "MeanReversion":
+            # Expect params: window, zscore
             mean = price.rolling(params['window']).mean()
             std  = price.rolling(params['window']).std()
             z    = (price - mean) / std
@@ -52,6 +61,7 @@ def build_signals(price, strat, params):
             return entries, exits
 
         else:
+            # Unknown strategy -> no signals
             return pd.Series(False, index=price.index), pd.Series(False, index=price.index)
 
     except Exception as e:
