@@ -46,6 +46,7 @@ def build_signals(price, strat, params):
                  price,
                  window=params['window'],
                  std=params.get('std', 2)
+            )
             entries = (price < bb.lower.iloc[:, 0]).astype(bool)
             exits   = (price > bb.upper.iloc[:, 0]).astype(bool)
             return entries, exits
