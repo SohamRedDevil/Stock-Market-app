@@ -84,3 +84,52 @@ def get_price_data(ticker, start=None, end=None):
 
     print(f"[FAIL] No data for {ticker}")
     return pd.Series(dtype=float)
+
+
+# === Macro symbols mapping ===
+MACRO_SYMBOLS = {
+    "VIX": "^VIX",          # Volatility Index
+    "US10Y": "^TNX",        # 10Y Treasury Yield
+    "DXY": "DX-Y.NYB",      # US Dollar Index
+    "SPY": "SPY"            # S&P 500 ETF
+}
+
+def get_macro_data(start=None, end=None, selection=None):
+    """
+    Fetch macroeconomic data with fallback logic.
+    Tries Yahoo first, then Alpha Vantage, then FMP.
+    Returns dict of {name: pd.Series}.
+    """
+    selection = selection or ["VIX", "US10Y", "DXY", "SPY"]
+    macro_data = {}
+
+    for name in selection:
+        symbol = MACRO_SYMBOLS.get(name)
+        if not symbol:
+            continue
+
+        # Try Yahoo
+        series = fetch_yahoo(symbol, start, end)
+        if not series.empty:
+            print(f"[INFO] Yahoo returned {len(series)} rows for {name}")
+            macro_data[name] = series
+            continue
+
+        # Try Alpha Vantage
+        series = fetch_alpha(symbol, start, end)
+        if not series.empty:
+            print(f"[INFO] Alpha Vantage returned {len(series)} rows for {name}")
+            macro_data[name] = series
+            continue
+
+        # Try FMP
+        series = fetch_fmp(symbol, start, end)
+        if not series.empty:
+            print(f"[INFO] FMP returned {len(series)} rows for {name}")
+            macro_data[name] = series
+            continue
+
+        print(f"[FAIL] No data for macro {name}")
+        macro_data[name] = pd.Series(dtype=float)
+
+    return macro_data
