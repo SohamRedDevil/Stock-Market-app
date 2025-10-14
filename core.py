@@ -1,69 +1,129 @@
+import numpy as np
 import pandas as pd
+import itertools
 import vectorbt as vbt
+from config import strategy_params, INIT_CASH
 
-def build_signals(price, strat, params):
+def _get_build_signals():
+    # Local import avoids circulars and reload issues in Streamlit
+    from strategies import build_signals
+    return build_signals
+
+def walk_forward_optimize(price, strat, train_window=756, test_window=126):
     """
-    Return (entries, exits) as boolean Series aligned to price.index.
-    Uses vectorbt indicators where applicable and squeezes to Series.
+    Walk-forward optimization over rolling train/test windows.
+    Returns best_params dict and best out-of-sample average return.
     """
-    try:
-        if strat == "MA":
-            fast = vbt.MA.run(price, window=params['fast']).ma
-            slow = vbt.MA.run(price, window=params['slow']).ma
-            entries = (fast > slow).squeeze()
-            exits   = (fast < slow).squeeze()
-            return entries, exits
+    build_signals = _get_build_signals()
 
-        elif strat == "RSI":
-            rsi = vbt.RSI.run(price, window=params['window']).rsi
-            overbought = params.get("overbought", 70)
-            oversold   = params.get("oversold", 30)
-            entries = (rsi < oversold).squeeze()
-            exits   = (rsi > overbought).squeeze()
-            return entries, exits
+    # Build the param grid from config.strategy_params[strat]
+    grid_values = list(strategy_params[strat].values())
+    param_grid = list(itertools.product(*grid_values))
+    keys = list(strategy_params[strat].keys())
 
-        elif strat == "MACD":
-            # Expect params keys: fast, slow, signal
-            macd = vbt.MACD.run(price, fast=params['fast'], slow=params['slow'], signal=params['signal'])
-            entries = (macd.macd > macd.signal).squeeze()
-            exits   = (macd.macd < macd.signal).squeeze()
-            return entries, exits
+    best_params = None
+    best_score = -np.inf
 
-        elif strat == "Bollinger":
-            # Expect params keys: window, std
-            bb = vbt.BBANDS.run(price, window=params['window'], std=params.get('std', 2))
-            entries = (price < bb.lower).squeeze()
-            exits   = (price > bb.upper).squeeze()
-            return entries, exits
+    for params in param_grid:
+        param_dict = dict(zip(keys, params))
+        oos_returns = []
+        start = 0
 
-        elif strat == "Breakout":
-            # Expect param: window
-            roll_max = price.rolling(params['window']).max()
-            roll_min = price.rolling(params['window']).min()
-            entries = (price > roll_max.shift(1)).squeeze()
-            exits   = (price < roll_min.shift(1)).squeeze()
-            return entries, exits
+        while start + train_window + test_window <= len(price):
+            # Train slice skipped here; we're evaluating OOS test slice on fixed params
+            test_slice = price.iloc[start + train_window : start + train_window + test_window]
+            entries, exits = build_signals(test_slice, strat, param_dict)
+            pf = vbt.Portfolio.from_signals(
+                test_slice, entries, exits, init_cash=INIT_CASH, fees=0.001
+            )
+            oos_returns.append(float(pf.total_return()))
+            start += test_window
 
-        elif strat == "Momentum":
-            # Expect param: window
-            mom = price.pct_change(params['window'])
-            entries = (mom > 0).squeeze()
-            exits   = (mom < 0).squeeze()
-            return entries, exits
+        avg_return = float(np.mean(oos_returns)) if oos_returns else -np.inf
+        if avg_return > best_score:
+            best_score = avg_return
+            best_params = param_dict
 
-        elif strat == "MeanReversion":
-            # Expect params: window, zscore
-            mean = price.rolling(params['window']).mean()
-            std  = price.rolling(params['window']).std()
-            z    = (price - mean) / std
-            entries = (z < -params['zscore']).squeeze()
-            exits   = (z > params['zscore']).squeeze()
-            return entries, exits
+    return best_params, best_score
 
+def run_backtest(price, strat, params):
+    """Run a backtest for a single strategy with given params."""
+    build_signals = _get_build_signals()
+    entries, exits = build_signals(price, strat, params)
+    pf = vbt.Portfolio.from_signals(price, entries, exits, init_cash=INIT_CASH, fees=0.001)
+    return pf
+
+def stack_strategies(price, strategies_with_params):
+    """Combine multiple strategies with OR logic (any entry/exit triggers)."""
+    build_signals = _get_build_signals()
+    entry_stack = pd.Series(False, index=price.index)
+    exit_stack  = pd.Series(False, index=price.index)
+
+    for strat, params in strategies_with_params.items():
+        entries, exits = build_signals(price, strat, params)
+        if isinstance(entries, pd.DataFrame):
+            entries = entries.any(axis=1)
+        if isinstance(exits, pd.DataFrame):
+            exits = exits.any(axis=1)
+        entry_stack |= entries
+        exit_stack  |= exits
+
+    pf = vbt.Portfolio.from_signals(price, entry_stack, exit_stack, init_cash=INIT_CASH, fees=0.001)
+    return pf
+
+def stack_by_correlation(price, strategies_with_params, lookback=252, corr_threshold=0.3, metric='returns'):
+    """
+    Greedy stacking: add strategies whose correlation with the current stack
+    (returns or signals) is below threshold.
+    """
+    build_signals = _get_build_signals()
+    series_dict = {}
+    portfolios = {}
+
+    # Build per-strategy series for correlation
+    for strat, params in strategies_with_params.items():
+        entries, exits = build_signals(price, strat, params)
+        pf = vbt.Portfolio.from_signals(price, entries, exits, init_cash=INIT_CASH, fees=0.001)
+        portfolios[strat] = pf
+
+        if metric == 'returns':
+            s = pf.daily_returns()
         else:
-            # Unknown strategy -> no signals
-            return pd.Series(False, index=price.index), pd.Series(False, index=price.index)
+            e = entries
+            if isinstance(e, pd.DataFrame):
+                e = e.any(axis=1)
+            s = e.astype(int).diff().fillna(0).clip(lower=0)  # approximate "new signals"
 
-    except Exception as e:
-        print(f"[Strategy ERROR] {strat}: {e}")
-        return pd.Series(False, index=price.index), pd.Series(False, index=price.index)
+        s = s[-lookback:]
+        series_dict[strat] = s
+
+    chosen = []
+    ordered_strats = list(strategies_with_params.keys())
+    stack_vector = None
+
+    for strat in ordered_strats:
+        s = series_dict[strat]
+        if stack_vector is None:
+            chosen.append(strat)
+            stack_vector = s.copy()
+        else:
+            corr = float(stack_vector.corr(s)) if len(stack_vector.dropna()) and len(s.dropna()) else 0.0
+            if not np.isnan(corr) and abs(corr) < corr_threshold:
+                chosen.append(strat)
+                stack_vector = pd.concat([stack_vector, s], axis=1).mean(axis=1)
+
+    # Combine chosen strategies entries/exits (OR logic)
+    entry_stack = pd.Series(False, index=price.index)
+    exit_stack  = pd.Series(False, index=price.index)
+    for strat in chosen:
+        params = strategies_with_params[strat]
+        entries, exits = build_signals(price, strat, params)
+        if isinstance(entries, pd.DataFrame):
+            entries = entries.any(axis=1)
+        if isinstance(exits, pd.DataFrame):
+            exits = exits.any(axis=1)
+        entry_stack |= entries
+        exit_stack  |= exits
+
+    pf = vbt.Portfolio.from_signals(price, entry_stack, exit_stack, init_cash=INIT_CASH, fees=0.001)
+    return pf, chosen
