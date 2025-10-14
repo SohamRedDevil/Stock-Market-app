@@ -27,7 +27,7 @@ def fetch_yahoo(ticker, start=None, end=None, interval="1d"):
         return pd.Series(dtype=float)
 
 # === Fallback 1: Alpha Vantage ===
-def fetch_alpha_direct(ticker, start=None, end=None):
+def fetch_alpha(ticker, start=None, end=None):
     url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY_ADJUSTED&symbol={ticker}&outputsize=full&apikey={ALPHA_KEY}"
     r = requests.get(url)
     data = r.json().get("Time Series (Daily)", {})
