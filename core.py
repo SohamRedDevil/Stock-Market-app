@@ -73,8 +73,8 @@ def stack_strategies(price, strategies_with_params):
 
 def stack_by_correlation(price, strategies_with_params, lookback=252, corr_threshold=0.3, metric='returns'):
     """
-    Greedy stacking: add strategies whose correlation with the current stack
-    (returns or signals) is below threshold.
+    Greedy stacking: start from one strategy, add others whose correlation
+    with the current stack is below threshold. Correlation can be based on returns or signals.
     """
     build_signals = _get_build_signals()
     series_dict = {}
@@ -92,7 +92,11 @@ def stack_by_correlation(price, strategies_with_params, lookback=252, corr_thres
             e = entries
             if isinstance(e, pd.DataFrame):
                 e = e.any(axis=1)
-            s = e.astype(int).diff().fillna(0).clip(lower=0)  # approximate "new signals"
+            s = e.astype(int).diff().fillna(0).clip(lower=0)
+
+        # Reduce to Series if DataFrame
+        if isinstance(s, pd.DataFrame):
+            s = s.mean(axis=1)
 
         s = s[-lookback:]
         series_dict[strat] = s
@@ -103,13 +107,28 @@ def stack_by_correlation(price, strategies_with_params, lookback=252, corr_thres
 
     for strat in ordered_strats:
         s = series_dict[strat]
+
+        # Ensure s is a Series
+        if isinstance(s, pd.DataFrame):
+            s = s.mean(axis=1)
+
         if stack_vector is None:
             chosen.append(strat)
             stack_vector = s.copy()
         else:
-            corr = float(stack_vector.corr(s)) if len(stack_vector.dropna()) and len(s.dropna()) else 0.0
+            # Ensure stack_vector is a Series
+            if isinstance(stack_vector, pd.DataFrame):
+                stack_vector = stack_vector.mean(axis=1)
+
+            # Compute correlation safely
+            if len(stack_vector.dropna()) > 0 and len(s.dropna()) > 0:
+                corr = stack_vector.corr(s)
+            else:
+                corr = 0.0
+
             if not np.isnan(corr) and abs(corr) < corr_threshold:
                 chosen.append(strat)
+                # Update stack_vector as average of combined signals/returns
                 stack_vector = pd.concat([stack_vector, s], axis=1).mean(axis=1)
 
     # Combine chosen strategies entries/exits (OR logic)
