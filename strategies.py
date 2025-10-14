@@ -1,6 +1,15 @@
 import pandas as pd
 import vectorbt as vbt
 
+def _to_series(x, index):
+    """Force any DataFrame/array into a boolean Series aligned to index."""
+    if isinstance(x, pd.DataFrame):
+        # Collapse multiple columns with any() across axis=1
+        return x.any(axis=1).reindex(index, fill_value=False)
+    if isinstance(x, pd.Series):
+        return x.reindex(index, fill_value=False)
+    return pd.Series(x, index=index)
+
 def build_signals(price, strat, params):
     """
     Return (entries, exits) as boolean Series aligned to price.index.
