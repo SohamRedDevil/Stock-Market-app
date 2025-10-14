@@ -43,9 +43,9 @@ def build_signals(price, strat, params):
 
          elif strat == "Bollinger":
             bb = vbt.BBANDS.run(
-            price,
-            window=params['window'],
-            std=params.get('std', 2)
+                   price,
+                   window=params['window'],
+                   std=params.get('std', 2)
             entries = (price < bb.lower.iloc[:, 0]).astype(bool)
             exits   = (price > bb.upper.iloc[:, 0]).astype(bool)
             return entries, exits
