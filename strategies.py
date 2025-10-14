@@ -32,11 +32,11 @@ def build_signals(price, strat, params):
             return entries, exits
 
         elif strat == "MACD":
-    macd = vbt.MACD.run(
-        price,
-        fast_window=params['fast_window'],
-        slow_window=params['slow_window'],
-        signal_window=params['signal_window']
+            macd = vbt.MACD.run(
+            price,
+            fast_window=params['fast_window'],
+            slow_window=params['slow_window'],
+            signal_window=params['signal_window']
     )
     entries = macd.macd > macd.signal
     exits   = macd.macd < macd.signal
