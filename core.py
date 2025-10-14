@@ -1,13 +1,16 @@
-# core.py
 import numpy as np
 import pandas as pd
 import itertools
 import vectorbt as vbt
 from config import strategy_params, INIT_CASH
-from strategies import build_signals
+from strategies import build_signals   # ✅ central import here
 
 
 def walk_forward_optimize(price, strat, train_window=756, test_window=126):
+    """
+    Walk-forward optimization: split data into rolling train/test windows,
+    evaluate parameter sets, and return the best-performing params + score.
+    """
     param_grid = list(itertools.product(*strategy_params[strat].values()))
     best_params = None
     best_score = -np.inf
@@ -16,10 +19,13 @@ def walk_forward_optimize(price, strat, train_window=756, test_window=126):
         param_dict = dict(zip(strategy_params[strat].keys(), params))
         oos_returns = []
         start = 0
+
         while start + train_window + test_window <= len(price):
             test_slice = price.iloc[start + train_window:start + train_window + test_window]
             entries, exits = build_signals(test_slice, strat, param_dict)
-            pf = vbt.Portfolio.from_signals(test_slice, entries, exits, init_cash=INIT_CASH, fees=0.001)
+            pf = vbt.Portfolio.from_signals(
+                test_slice, entries, exits, init_cash=INIT_CASH, fees=0.001
+            )
             oos_returns.append(float(pf.total_return()))
             start += test_window
 
@@ -30,79 +36,74 @@ def walk_forward_optimize(price, strat, train_window=756, test_window=126):
 
     return best_params, best_score
 
+
 def run_backtest(price, strat, params):
-    from strategies import build_signals
+    """Run a backtest for a single strategy with given params."""
     entries, exits = build_signals(price, strat, params)
     pf = vbt.Portfolio.from_signals(price, entries, exits, init_cash=INIT_CASH, fees=0.001)
     return pf
 
+
 def stack_strategies(price, strategies_with_params):
-    from strategies import build_signals
+    """Combine multiple strategies with OR logic (any entry/exit triggers)."""
     entry_stack = pd.Series(False, index=price.index)
     exit_stack = pd.Series(False, index=price.index)
+
     for strat, params in strategies_with_params.items():
-        entry, exit = build_signals(price, strat, params)
-        entry_stack |= entry
-        exit_stack |= exit
+        entries, exits = build_signals(price, strat, params)
+        entry_stack |= entries
+        exit_stack |= exits
+
     pf = vbt.Portfolio.from_signals(price, entry_stack, exit_stack, init_cash=INIT_CASH, fees=0.001)
     return pf
 
-def stack_by_correlation(price, strategies_with_params, lookback=252, corr_threshold=0.3, metric='returns'):
-    from strategies import build_signals
-    """
-    Greedy stacking: start from the highest expected score (walk-forward winner) if known externally,
-    otherwise from the first strategy. Add strategies whose metric correlation to the stack is < threshold.
 
-    metric:
-      - 'returns': use daily returns from each strategy's portfolio (entries/exits applied)
-      - 'signals': use boolean signals (entries) to estimate correlation of firing patterns
+def stack_by_correlation(price, strategies_with_params, lookback=252, corr_threshold=0.3, metric='returns'):
     """
-    # Build per-strategy series for correlation
+    Greedy stacking: start from one strategy, add others whose correlation
+    with the stack is below threshold. Correlation can be based on returns or signals.
+    """
     series_dict = {}
     portfolios = {}
+
     for strat, params in strategies_with_params.items():
         entries, exits = build_signals(price, strat, params)
         pf = vbt.Portfolio.from_signals(price, entries, exits, init_cash=INIT_CASH, fees=0.001)
         portfolios[strat] = pf
 
         if metric == 'returns':
-            s = pf.total_return_series() if hasattr(pf, 'total_return_series') else pf.daily_returns()
+            s = pf.daily_returns()
         else:
-            # entries as int; if DataFrame, reduce row to any=True
             e = entries
             if isinstance(e, pd.DataFrame):
                 e = e.any(axis=1)
-            s = e.astype(int).diff().fillna(0).clip(lower=0)  # approximate "new signals"
-        # align and limit to lookback
+            s = e.astype(int).diff().fillna(0).clip(lower=0)
+
         s = s[-lookback:]
         series_dict[strat] = s
 
     chosen = []
-    # If you have external scores, order strategies by expected performance; else keep dict order
     ordered_strats = list(strategies_with_params.keys())
-
     stack_vector = None
+
     for strat in ordered_strats:
         s = series_dict[strat]
         if stack_vector is None:
             chosen.append(strat)
             stack_vector = s.copy()
         else:
-            # compute correlation with current stack vector
             corr = float(stack_vector.corr(s)) if len(stack_vector.dropna()) and len(s.dropna()) else 0.0
             if not np.isnan(corr) and abs(corr) < corr_threshold:
                 chosen.append(strat)
-                # update stack vector as average to represent combined behavior
                 stack_vector = pd.concat([stack_vector, s], axis=1).mean(axis=1)
 
-    # Combine chosen strategies entries/exits (OR logic)
     entry_stack = pd.Series(False, index=price.index)
     exit_stack = pd.Series(False, index=price.index)
     for strat in chosen:
         params = strategies_with_params[strat]
-        entry, exit = build_signals(price, strat, params)
-        entry_stack |= entry
-        exit_stack |= exit
+        entries, exits = build_signals(price, strat, params)
+        entry_stack |= entries
+        exit_stack |= exits
 
     pf = vbt.Portfolio.from_signals(price, entry_stack, exit_stack, init_cash=INIT_CASH, fees=0.001)
     return pf, chosen
