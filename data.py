@@ -1,7 +1,6 @@
 import yfinance as yf
 import pandas as pd
 import requests
-from alpha_vantage.timeseries import TimeSeries
 
 # === API KEYS ===
 ALPHA_KEY = "2F6D8A5BI2BTG7QV"   # get free at https://www.alphavantage.co
