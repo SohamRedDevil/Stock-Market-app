@@ -52,15 +52,18 @@ def run_backtest(price, strat, params):
 
 
 def stack_strategies(price, strategies_with_params):
-    """Combine multiple strategies with OR logic (any entry/exit triggers)."""
     build_signals = _get_build_signals()
     entry_stack = pd.Series(False, index=price.index)
-    exit_stack = pd.Series(False, index=price.index)
+    exit_stack  = pd.Series(False, index=price.index)
 
     for strat, params in strategies_with_params.items():
         entries, exits = build_signals(price, strat, params)
+        if isinstance(entries, pd.DataFrame):
+            entries = entries.any(axis=1)
+        if isinstance(exits, pd.DataFrame):
+            exits = exits.any(axis=1)
         entry_stack |= entries
-        exit_stack |= exits
+        exit_stack  |= exits
 
     pf = vbt.Portfolio.from_signals(price, entry_stack, exit_stack, init_cash=INIT_CASH, fees=0.001)
     return pf
