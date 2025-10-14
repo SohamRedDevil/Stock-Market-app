@@ -42,12 +42,17 @@ def build_signals(price, strat, params):
             return entries, exits
 
         elif strat == "Bollinger":
-            bb = vbt.BBANDS.run(price, window=params['window'], std=params.get('std', 2))
-            entries = _to_series(price < bb.lower.iloc[:, 0], price.index)
-            exits   = _to_series(price > bb.upper.iloc[:, 0], price.index)
-            return entries, exits
+    bb = vbt.BBANDS.run(
+        price,
+        window=params['window'],
+        std=params.get('std', 2)
+    )
+    entries = (price < bb.lower.iloc[:, 0]).astype(bool)
+    exits   = (price > bb.upper.iloc[:, 0]).astype(bool)
+    return entries, exits
+        
 
-        elif strat == "Breakout":
+       elif strat == "Breakout":
             roll_max = price.rolling(params['window']).max()
             roll_min = price.rolling(params['window']).min()
             entries = _to_series(price > roll_max.shift(1), price.index)
