@@ -18,7 +18,7 @@ def build_signals(price, strat, params):
     try:
         if strat == "MA":
             fast = vbt.MA.run(price, window=params['fast']).ma.iloc[:, 0]
-slow = vbt.MA.run(price, window=params['slow']).ma.iloc[:, 0]
+            slow = vbt.MA.run(price,window=params['slow']).ma.iloc[:, 0]
             entries = (fast > slow).squeeze()
             exits   = (fast < slow).squeeze()
             return entries, exits
