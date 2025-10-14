@@ -3,14 +3,20 @@ import pandas as pd
 import itertools
 import vectorbt as vbt
 from config import strategy_params, INIT_CASH
-from strategies import build_signals   # ✅ central import here
+
+
+def _get_build_signals():
+    # Local import to avoid circulars/reload issues
+    from strategies import build_signals
+    return build_signals
 
 
 def walk_forward_optimize(price, strat, train_window=756, test_window=126):
     """
-    Walk-forward optimization: split data into rolling train/test windows,
-    evaluate parameter sets, and return the best-performing params + score.
+    Walk-forward optimization: rolling train/test windows to evaluate params.
     """
+    build_signals = _get_build_signals()
+
     param_grid = list(itertools.product(*strategy_params[strat].values()))
     best_params = None
     best_score = -np.inf
@@ -39,6 +45,7 @@ def walk_forward_optimize(price, strat, train_window=756, test_window=126):
 
 def run_backtest(price, strat, params):
     """Run a backtest for a single strategy with given params."""
+    build_signals = _get_build_signals()
     entries, exits = build_signals(price, strat, params)
     pf = vbt.Portfolio.from_signals(price, entries, exits, init_cash=INIT_CASH, fees=0.001)
     return pf
@@ -46,6 +53,7 @@ def run_backtest(price, strat, params):
 
 def stack_strategies(price, strategies_with_params):
     """Combine multiple strategies with OR logic (any entry/exit triggers)."""
+    build_signals = _get_build_signals()
     entry_stack = pd.Series(False, index=price.index)
     exit_stack = pd.Series(False, index=price.index)
 
@@ -60,9 +68,10 @@ def stack_strategies(price, strategies_with_params):
 
 def stack_by_correlation(price, strategies_with_params, lookback=252, corr_threshold=0.3, metric='returns'):
     """
-    Greedy stacking: start from one strategy, add others whose correlation
-    with the stack is below threshold. Correlation can be based on returns or signals.
+    Greedy stacking: add strategies whose correlation with the current stack
+    (returns or signals) is below threshold.
     """
+    build_signals = _get_build_signals()
     series_dict = {}
     portfolios = {}
 
