@@ -8,12 +8,17 @@ ALPHA_KEY = "2F6D8A5BI2BTG7QV"   # get free at https://www.alphavantage.co
 FMP_KEY   = "BCsXgMHJYdsOpjiM2gB4E9NGS9utzlAj"             # get free at https://financialmodelingprep.com/developer
 
 # === Primary fetch: Yahoo Finance ===
-def fetch_yahoo(ticker, start=None, end=None, period="max", interval="1d"):
+def fetch_yahoo(ticker, start=None, end=None, interval="1d"):
     try:
         if start and end:
-            df = yf.download(ticker, start=start, end=end, interval=interval, auto_adjust=True, progress=False)
+            # Only pass start/end
+            df = yf.download(ticker, start=start, end=end, interval=interval,
+                             auto_adjust=True, progress=False)
         else:
-            df = yf.download(ticker, period=period, interval=interval, auto_adjust=True, progress=False)
+            # Only pass period
+            df = yf.download(ticker, period="max", interval=interval,
+                             auto_adjust=True, progress=False)
+
         if df.empty or "Close" not in df.columns:
             return pd.Series(dtype=float)
         return df["Close"].dropna()
