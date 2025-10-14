@@ -22,7 +22,7 @@ def build_signals(price, strat, params):
             exits   = _to_series(fast < slow, price.index)
             return entries, exits
 
-       elif strat == "RSI":
+        elif strat == "RSI":
             rsi = vbt.RSI.run(price, window=params['window']).rsi.iloc[:, 0]
             overbought = params.get("overbought", 70)
             oversold   = params.get("oversold", 30)
@@ -30,7 +30,7 @@ def build_signals(price, strat, params):
             exits   = _to_series(rsi > overbought, price.index)
             return entries, exits
 
-       elif strat == "MACD":
+        elif strat == "MACD":
             macd = vbt.MACD.run(
                 price,
                 fast_window=params['fast_window'],
