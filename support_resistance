@@ -1,0 +1,286 @@
+import pandas as pd
+import numpy as np
+from scipy.signal import argrelextrema
+from typing import List, Tuple, Dict
+import warnings
+warnings.filterwarnings('ignore')
+
+class SupportResistanceFinder:
+    """
+    Identifies support and resistance levels using multiple methods:
+    1. Local extrema (swing highs/lows)
+    2. Historical price clustering
+    3. Volume-weighted levels
+    4. Fibonacci retracements
+    """
+    
+    def __init__(self, df: pd.DataFrame):
+        """
+        Initialize with OHLCV data
+        df should have columns: ['Open', 'High', 'Low', 'Close', 'Volume']
+        and datetime index
+        """
+        self.df = df.copy()
+        self.support_levels = []
+        self.resistance_levels = []
+        self.fib_levels = {}
+        
+    def find_swing_points(self, order: int = 5) -> Tuple[List[float], List[float]]:
+        """
+        Find swing highs and lows using local extrema
+        
+        Args:
+            order: Number of periods on each side to compare (higher = more significant swings)
+        
+        Returns:
+            Tuple of (support_levels, resistance_levels)
+        """
+        # Find local minima (support)
+        local_min_idx = argrelextrema(self.df['Low'].values, np.less, order=order)[0]
+        support = self.df['Low'].iloc[local_min_idx].values
+        
+        # Find local maxima (resistance)
+        local_max_idx = argrelextrema(self.df['High'].values, np.greater, order=order)[0]
+        resistance = self.df['High'].iloc[local_max_idx].values
+        
+        return support.tolist(), resistance.tolist()
+    
+    def cluster_levels(self, levels: List[float], tolerance_pct: float = 2.0) -> List[float]:
+        """
+        Cluster nearby levels together to identify key zones
+        
+        Args:
+            levels: List of price levels
+            tolerance_pct: Percentage tolerance for clustering
+        
+        Returns:
+            List of clustered levels
+        """
+        if not levels:
+            return []
+        
+        levels = sorted(levels)
+        clusters = []
+        current_cluster = [levels[0]]
+        
+        for level in levels[1:]:
+            # If within tolerance of cluster mean, add to cluster
+            cluster_mean = np.mean(current_cluster)
+            if abs(level - cluster_mean) / cluster_mean * 100 <= tolerance_pct:
+                current_cluster.append(level)
+            else:
+                # Save cluster mean and start new cluster
+                clusters.append(np.mean(current_cluster))
+                current_cluster = [level]
+        
+        # Don't forget the last cluster
+        clusters.append(np.mean(current_cluster))
+        
+        return clusters
+    
+    def find_volume_weighted_levels(self, n_levels: int = 5) -> List[Tuple[float, float]]:
+        """
+        Find price levels with highest volume concentration
+        Uses price bins to identify high-volume zones
+        
+        Args:
+            n_levels: Number of top levels to return
+        
+        Returns:
+            List of (price_level, total_volume) tuples
+        """
+        # Create price bins
+        n_bins = 50
+        price_range = self.df['High'].max() - self.df['Low'].min()
+        bin_size = price_range / n_bins
+        
+        # Calculate volume at each price level
+        volume_profile = {}
+        
+        for _, row in self.df.iterrows():
+            # Distribute volume across the day's price range
+            low_bin = int((row['Low'] - self.df['Low'].min()) / bin_size)
+            high_bin = int((row['High'] - self.df['Low'].min()) / bin_size)
+            
+            # Volume per bin for this candle
+            vol_per_bin = row['Volume'] / (high_bin - low_bin + 1)
+            
+            for bin_idx in range(low_bin, high_bin + 1):
+                price_level = self.df['Low'].min() + (bin_idx * bin_size)
+                volume_profile[price_level] = volume_profile.get(price_level, 0) + vol_per_bin
+        
+        # Sort by volume and return top levels
+        sorted_levels = sorted(volume_profile.items(), key=lambda x: x[1], reverse=True)
+        return sorted_levels[:n_levels]
+    
+    def calculate_fibonacci_levels(self, lookback_periods: int = None) -> Dict[str, float]:
+        """
+        Calculate Fibonacci retracement levels
+        
+        Args:
+            lookback_periods: Number of periods to look back (None = all data)
+        
+        Returns:
+            Dictionary of Fibonacci levels
+        """
+        if lookback_periods:
+            df_subset = self.df.tail(lookback_periods)
+        else:
+            df_subset = self.df
+        
+        high = df_subset['High'].max()
+        low = df_subset['Low'].min()
+        diff = high - low
+        
+        fib_levels = {
+            '0.0% (Low)': low,
+            '23.6%': high - (diff * 0.236),
+            '38.2%': high - (diff * 0.382),
+            '50.0%': high - (diff * 0.500),
+            '61.8%': high - (diff * 0.618),
+            '78.6%': high - (diff * 0.786),
+            '100.0% (High)': high
+        }
+        
+        return fib_levels
+    
+    def find_round_numbers(self, current_price: float, range_pct: float = 20) -> List[float]:
+        """
+        Identify psychologically significant round numbers near current price
+        
+        Args:
+            current_price: Current stock price
+            range_pct: Percentage range above/below to search
+        
+        Returns:
+            List of round number levels
+        """
+        lower_bound = current_price * (1 - range_pct/100)
+        upper_bound = current_price * (1 + range_pct/100)
+        
+        round_numbers = []
+        
+        # Determine appropriate rounding based on price
+        if current_price < 10:
+            step = 1
+        elif current_price < 50:
+            step = 5
+        elif current_price < 100:
+            step = 10
+        else:
+            step = 25
+        
+        # Find round numbers in range
+        current = int(lower_bound / step) * step
+        while current <= upper_bound:
+            if lower_bound <= current <= upper_bound:
+                round_numbers.append(float(current))
+            current += step
+        
+        return round_numbers
+    
+    def get_all_levels(self, 
+                      swing_order: int = 5,
+                      cluster_tolerance: float = 2.0,
+                      lookback_fib: int = None,
+                      n_volume_levels: int = 5) -> Dict:
+        """
+        Comprehensive function to get all support/resistance levels
+        
+        Returns:
+            Dictionary containing all identified levels
+        """
+        current_price = self.df['Close'].iloc[-1]
+        
+        # 1. Swing points
+        swing_support, swing_resistance = self.find_swing_points(order=swing_order)
+        
+        # 2. Cluster the levels
+        clustered_support = self.cluster_levels(swing_support, cluster_tolerance)
+        clustered_resistance = self.cluster_levels(swing_resistance, cluster_tolerance)
+        
+        # 3. Volume-weighted levels
+        volume_levels = self.find_volume_weighted_levels(n_volume_levels)
+        
+        # 4. Fibonacci levels
+        fib_levels = self.calculate_fibonacci_levels(lookback_fib)
+        
+        # 5. Round numbers
+        round_numbers = self.find_round_numbers(current_price)
+        
+        # Separate support and resistance based on current price
+        support = [s for s in clustered_support if s < current_price]
+        resistance = [r for r in clustered_resistance if r > current_price]
+        
+        # Sort by distance from current price
+        support = sorted(support, reverse=True)  # Closest first
+        resistance = sorted(resistance)  # Closest first
+        
+        return {
+            'current_price': current_price,
+            'support': support[:5],  # Top 5 closest support levels
+            'resistance': resistance[:5],  # Top 5 closest resistance levels
+            'volume_levels': volume_levels,
+            'fibonacci': fib_levels,
+            'round_numbers': round_numbers,
+            'raw_swing_support': swing_support,
+            'raw_swing_resistance': swing_resistance
+        }
+    
+    def get_nearest_levels(self, n: int = 3) -> Dict:
+        """
+        Get the nearest support and resistance levels for quick reference
+        
+        Args:
+            n: Number of nearest levels to return
+        
+        Returns:
+            Dictionary with nearest levels
+        """
+        all_levels = self.get_all_levels()
+        
+        return {
+            'current_price': all_levels['current_price'],
+            'nearest_support': all_levels['support'][:n],
+            'nearest_resistance': all_levels['resistance'][:n],
+            'key_fibonacci': {
+                '38.2%': all_levels['fibonacci']['38.2%'],
+                '50.0%': all_levels['fibonacci']['50.0%'],
+                '61.8%': all_levels['fibonacci']['61.8%']
+            }
+        }
+    
+    def print_summary(self):
+        """Print a formatted summary of all levels"""
+        levels = self.get_all_levels()
+        
+        print(f"\n{'='*60}")
+        print(f"SUPPORT & RESISTANCE ANALYSIS")
+        print(f"{'='*60}")
+        print(f"Current Price: ${levels['current_price']:.2f}\n")
+        
+        print("NEAREST RESISTANCE LEVELS:")
+        print("-" * 40)
+        for i, level in enumerate(levels['resistance'][:5], 1):
+            distance = ((level - levels['current_price']) / levels['current_price']) * 100
+            print(f"  R{i}: ${level:.2f} (+{distance:.2f}%)")
+        
+        print("\nNEAREST SUPPORT LEVELS:")
+        print("-" * 40)
+        for i, level in enumerate(levels['support'][:5], 1):
+            distance = ((levels['current_price'] - level) / levels['current_price']) * 100
+            print(f"  S{i}: ${level:.2f} (-{distance:.2f}%)")
+        
+        print("\nKEY FIBONACCI LEVELS:")
+        print("-" * 40)
+        for name, level in levels['fibonacci'].items():
+            print(f"  {name}: ${level:.2f}")
+        
+        print("\nHIGH VOLUME PRICE ZONES:")
+        print("-" * 40)
+        for i, (price, vol) in enumerate(levels['volume_levels'], 1):
+            print(f"  {i}. ${price:.2f} (Volume: {vol:,.0f})")
+        
+        print(f"\n{'='*60}\n")
+
+
