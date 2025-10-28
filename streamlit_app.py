@@ -76,7 +76,7 @@ def add_macro_overlays(fig, macro_dict, price_index, secondary_y=True):
 # --- Sidebar Inputs ---
 tickers = st.text_input("Enter tickers (comma-separated)", value="AAPL,MSFT,NVDA").upper().split(",")
 start_date = st.date_input("Start date", value=pd.to_datetime("2018-01-01"))
-end_date = st.date_input("End date", value=pd.to_datetime("2023-12-31"))
+end_date = st.date_input("End date", value=pd.Timestamp.today())
 selected_strategies = st.multiselect("Select strategies", list(strategy_params.keys()), default=["MA", "RSI", "MACD"])
 
 stack_mode = st.selectbox("Stacking mode", ["None", "OR stack", "Correlation-based stack"], index=2)
