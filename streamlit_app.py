@@ -177,7 +177,8 @@ if st.button("Run Strategy Analysis"):
 
         fig.update_layout(title=f"{ticker} Strategy Chart", height=540, legend=dict(orientation="h"))
         st.plotly_chart(fig, use_container_width=True)
-
+        if pf.trades.count() == 0:
+            st.warning("No trades executed in this strategy.")
         # Stats + Export
         stats = pf.stats()
         if stats is not None and not stats.empty:
