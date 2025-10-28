@@ -203,16 +203,16 @@ if st.button("Run Strategy Analysis"):
                 stats_df = stats.to_frame().T
                 st.dataframe(stats_df)
 
-        # Safe extraction with fallback
-        total_return = stats_df.get("Total Return", pd.Series([np.nan])).iloc[0]
-        sharpe_ratio = stats_df.get("Sharpe Ratio", pd.Series([np.nan])).iloc[0]
+                # Safe extraction with fallback
+                total_return = stats_df.get("Total Return", pd.Series([np.nan])).iloc[0]
+                sharpe_ratio = stats_df.get("Sharpe Ratio", pd.Series([np.nan])).iloc[0]
 
-        comparison_rows.append({
-            "Ticker": ticker,
-            "Chosen_Strategies": ", ".join(chosen_strats),
-            "Total_Return": float(total_return) if pd.notna(total_return) else np.nan,
-            "Sharpe_Ratio": float(sharpe_ratio) if pd.notna(sharpe_ratio) else np.nan
-        })
+                comparison_rows.append({
+                   "Ticker": ticker,
+                    "Chosen_Strategies": ", ".join(chosen_strats),
+                    "Total_Return":         float(total_return) if pd.notna(total_return) else np.nan,
+                     "Sharpe_Ratio": float(sharpe_ratio) if pd.notna(sharpe_ratio) else np.nan
+                 })
              else:
                   st.warning("Stats are empty — skipping summary row.")
         else:
