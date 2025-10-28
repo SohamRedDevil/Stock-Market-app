@@ -187,7 +187,7 @@ if st.button("Run Strategy Analysis"):
         for name, series in macro_dict.items():
             st.write(f"Macro overlay '{name}': {len(series)} points")
 
-        fig = add_macro_overlays(fig, macro_dict)
+        fig = add_macro_overlays(fig, macro_dict,price.index)
 
         if show_sentiment:
             fig.add_annotation(text=f"🗣️ Sentiment: {sentiment_combined} (Reddit: {round(reddit_sent,3)}, News: {round(news_sent,3)}, Karma: {karma})",
