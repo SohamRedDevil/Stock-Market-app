@@ -213,10 +213,10 @@ if st.button("Run Strategy Analysis"):
             "Total_Return": float(total_return) if pd.notna(total_return) else np.nan,
             "Sharpe_Ratio": float(sharpe_ratio) if pd.notna(sharpe_ratio) else np.nan
         })
-    else:
-        st.warning("Stats are empty — skipping summary row.")
-else:
-    st.warning("No valid portfolio — skipping summary row.")
+             else:
+                  st.warning("Stats are empty — skipping summary row.")
+        else:
+            st.warning("No valid portfolio — skipping summary row.")
         csv = pf.trades.records_readable.to_csv(index=False)
         st.download_button("📥 Download Trades CSV", csv, file_name=f"{ticker}_trades.csv", mime="text/csv")
 
