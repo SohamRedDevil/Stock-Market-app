@@ -41,17 +41,35 @@ def plot_comparison(pf_dict):
     fig.update_layout(title="📊 Cumulative Return Comparison", height=500, legend=dict(orientation="h"))
     return fig
 
-def add_macro_overlays(fig, macro_dict, secondary_y=True):
+def add_macro_overlays(fig, macro_dict, price_index, secondary_y=True):
     # Overlay macro series on secondary y-axis for visibility
     for name, series in macro_dict.items():
-    if series is None or series.empty:
-        continue
-    series = series.reindex(price.index).fillna(method='ffill')
-    fig.add_trace(go.Scatter(x=series.index, y=series.values, mode='lines', name=name, yaxis="y2"))
+        if series is None or series.empty:
+            continue
+        series = series.reindex(price_index).fillna(method='ffill')
+        fig.add_trace(go.Scatter(
+            x=series.index,
+            y=series.values,
+            mode='lines',
+            name=name,
+            yaxis="y2" if secondary_y else "y"
+        ))
+
     fig.update_layout(
-    yaxis=dict(title="Price", showgrid=True),
-    yaxis2=dict(title="Macro", overlaying="y", side="right", showgrid=False),
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        yaxis=dict(title="Price", showgrid=True),
+        yaxis2=dict(
+            title="Macro",
+            overlaying="y",
+            side="right",
+            showgrid=False
+        ),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
     )
     return fig
 
