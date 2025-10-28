@@ -44,9 +44,10 @@ def plot_comparison(pf_dict):
 def add_macro_overlays(fig, macro_dict, secondary_y=True):
     # Overlay macro series on secondary y-axis for visibility
     for name, series in macro_dict.items():
-        if series is None or series.empty:
-            continue
-        fig.add_trace(go.Scatter(x=series.index, y=series.values, mode='lines', name=name, yaxis="y2"))
+    if series is None or series.empty:
+        continue
+    series = series.reindex(price.index).fillna(method='ffill')
+    fig.add_trace(go.Scatter(x=series.index, y=series.values, mode='lines', name=name, yaxis="y2"))
     fig.update_layout(
         yaxis=dict(title="Price"),
         yaxis2=dict(title="Macro", overlaying="y", side="right", showgrid=False)
