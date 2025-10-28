@@ -42,7 +42,8 @@ def plot_comparison(pf_dict):
     return fig
 
 def add_macro_overlays(fig, macro_dict, price_index, secondary_y=True):
-    # Overlay macro series on secondary y-axis for visibility
+    secondary_y = bool(secondary_y)  # Ensure it's a plain bool
+
     for name, series in macro_dict.items():
         if series is None or series.empty:
             continue
