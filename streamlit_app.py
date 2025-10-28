@@ -208,7 +208,7 @@ if st.button("Run Strategy Analysis"):
         st.download_button("📥 Download Trades CSV", csv, file_name=f"{ticker}_trades.csv", mime="text/csv")
 
         total_return = stats_df.get("Total Return", pd.Series([np.nan])).iloc[0]
-sharpe_ratio = stats_df.get("Sharpe Ratio", pd.Series([np.nan])).iloc[0]
+        sharpe_ratio = stats_df.get("Sharpe Ratio", pd.Series([np.nan])).iloc[0]
 
         comparison_rows.append({
            "Ticker": ticker,
