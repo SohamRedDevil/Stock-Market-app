@@ -220,15 +220,8 @@ else:
         csv = pf.trades.records_readable.to_csv(index=False)
         st.download_button("📥 Download Trades CSV", csv, file_name=f"{ticker}_trades.csv", mime="text/csv")
 
-        total_return = stats_df.get("Total Return", pd.Series([np.nan])).iloc[0]
-        sharpe_ratio = stats_df.get("Sharpe Ratio", pd.Series([np.nan])).iloc[0]
 
-        comparison_rows.append({
-           "Ticker": ticker,
-           "Chosen_Strategies": ", ".join(chosen_strats),
-           "Total_Return": float(total_return) if pd.notna(total_return) else np.nan,
-           "Sharpe_Ratio": float(sharpe_ratio) if pd.notna(sharpe_ratio) else np.nan
-        })
+      
 
     # Comparison chart
     if pf_dict:
