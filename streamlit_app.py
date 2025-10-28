@@ -196,15 +196,27 @@ if st.button("Run Strategy Analysis"):
 
         fig.update_layout(title=f"{ticker} Strategy Chart", height=540, legend=dict(orientation="h"))
         st.plotly_chart(fig, use_container_width=True)
-        if pf.trades.count().sum() == 0:
-            st.warning("No trades executed in this strategy.")
-        # Stats + Export
-        stats = pf.stats()
-        if stats is not None and not stats.empty:
-            stats_df = stats.to_frame().T
-            st.dataframe(stats_df)
-        else:
-            st.warning("No stats available for this portfolio.")
+        # --- Stats + Export ---
+if pf is not None and pf.trades.count().sum() > 0:
+    stats = pf.stats()
+    if stats is not None and not stats.empty:
+        stats_df = stats.to_frame().T
+        st.dataframe(stats_df)
+
+        # Safe extraction with fallback
+        total_return = stats_df.get("Total Return", pd.Series([np.nan])).iloc[0]
+        sharpe_ratio = stats_df.get("Sharpe Ratio", pd.Series([np.nan])).iloc[0]
+
+        comparison_rows.append({
+            "Ticker": ticker,
+            "Chosen_Strategies": ", ".join(chosen_strats),
+            "Total_Return": float(total_return) if pd.notna(total_return) else np.nan,
+            "Sharpe_Ratio": float(sharpe_ratio) if pd.notna(sharpe_ratio) else np.nan
+        })
+    else:
+        st.warning("Stats are empty — skipping summary row.")
+else:
+    st.warning("No valid portfolio — skipping summary row.")
         csv = pf.trades.records_readable.to_csv(index=False)
         st.download_button("📥 Download Trades CSV", csv, file_name=f"{ticker}_trades.csv", mime="text/csv")
 
