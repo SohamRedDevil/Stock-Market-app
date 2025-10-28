@@ -197,11 +197,11 @@ if st.button("Run Strategy Analysis"):
         fig.update_layout(title=f"{ticker} Strategy Chart", height=540, legend=dict(orientation="h"))
         st.plotly_chart(fig, use_container_width=True)
         # --- Stats + Export ---
-if pf is not None and pf.trades.count().sum() > 0:
-    stats = pf.stats()
-    if stats is not None and not stats.empty:
-        stats_df = stats.to_frame().T
-        st.dataframe(stats_df)
+        if pf is not None and pf.trades.count().sum() > 0:
+            stats = pf.stats()
+            if stats is not None and not stats.empty:
+                stats_df = stats.to_frame().T
+                st.dataframe(stats_df)
 
         # Safe extraction with fallback
         total_return = stats_df.get("Total Return", pd.Series([np.nan])).iloc[0]
