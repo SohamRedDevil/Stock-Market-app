@@ -181,8 +181,8 @@ if st.button("Run Strategy Analysis"):
         # Stats + Export
         stats = pf.stats()
         if stats is not None and not stats.empty:
-    stats_df = stats.to_frame().T
-    st.dataframe(stats_df)
+                  stats_df = stats.to_frame().T
+                  st.dataframe(stats_df)
         else:
     st.warning("No stats available for this portfolio.")
         csv = pf.trades.records_readable.to_csv(index=False)
