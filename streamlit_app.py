@@ -52,7 +52,7 @@ def add_macro_overlays(fig, macro_dict, secondary_y=True):
     yaxis=dict(title="Price", showgrid=True),
     yaxis2=dict(title="Macro", overlaying="y", side="right", showgrid=False),
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-)
+    )
     return fig
 
 # --- Sidebar Inputs ---
