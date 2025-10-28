@@ -49,9 +49,10 @@ def add_macro_overlays(fig, macro_dict, secondary_y=True):
     series = series.reindex(price.index).fillna(method='ffill')
     fig.add_trace(go.Scatter(x=series.index, y=series.values, mode='lines', name=name, yaxis="y2"))
     fig.update_layout(
-        yaxis=dict(title="Price"),
-        yaxis2=dict(title="Macro", overlaying="y", side="right", showgrid=False)
-    )
+    yaxis=dict(title="Price", showgrid=True),
+    yaxis2=dict(title="Macro", overlaying="y", side="right", showgrid=False),
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+)
     return fig
 
 # --- Sidebar Inputs ---
